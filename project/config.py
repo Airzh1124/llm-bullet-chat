@@ -65,6 +65,7 @@ class AppConfig:
     danmaku_spawn_interval_max: int
     danmaku_area_top_ratio: float
     danmaku_area_bottom_ratio: float
+    danmaku_track_gap_px: int
     max_danmaku: int
     overlay_click_through: bool
     overlay_opacity: float
@@ -118,6 +119,7 @@ def load_config() -> AppConfig:
         danmaku_spawn_interval_max=int(_get(yaml_config, "DANMAKU_SPAWN_INTERVAL_MAX_MS", 1600)),
         danmaku_area_top_ratio=float(_get(yaml_config, "DANMAKU_AREA_TOP_RATIO", 0.08)),
         danmaku_area_bottom_ratio=float(_get(yaml_config, "DANMAKU_AREA_BOTTOM_RATIO", 0.55)),
+        danmaku_track_gap_px=int(_get(yaml_config, "DANMAKU_TRACK_GAP_PX", 360)),
         max_danmaku=int(_get(yaml_config, "MAX_DANMAKU", 80)),
         overlay_click_through=_to_bool(_get(yaml_config, "OVERLAY_CLICK_THROUGH", True), True),
         overlay_opacity=float(_get(yaml_config, "OVERLAY_OPACITY", 0.92)),

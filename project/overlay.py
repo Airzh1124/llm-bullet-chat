@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 class DanmakuItem:
     label: QLabel
     speed: int
+    track_y: int
 
 
 class DanmakuOverlay(QWidget):
@@ -35,6 +36,7 @@ class DanmakuOverlay(QWidget):
         spawn_interval_max_ms: int = 1600,
         area_top_ratio: float = 0.08,
         area_bottom_ratio: float = 0.55,
+        track_gap_px: int = 360,
         max_danmaku: int = 80,
         click_through: bool = True,
         opacity: float = 0.92,
@@ -49,6 +51,7 @@ class DanmakuOverlay(QWidget):
         self.spawn_interval_max_ms = spawn_interval_max_ms
         self.area_top_ratio = area_top_ratio
         self.area_bottom_ratio = area_bottom_ratio
+        self.track_gap_px = track_gap_px
         self.max_danmaku = max_danmaku
         self.items: list[DanmakuItem] = []
         self.pending: deque[str] = deque()
@@ -108,6 +111,11 @@ class DanmakuOverlay(QWidget):
             self._schedule_next_spawn()
             return
 
+        track_y = self._choose_available_track()
+        if track_y is None:
+            self.spawn_timer.start(250)
+            return
+
         text = self.pending.popleft()
         while len(self.items) >= self.max_danmaku:
             self._remove_item(self.items[0])
@@ -122,15 +130,33 @@ class DanmakuOverlay(QWidget):
         )
         label.adjustSize()
 
-        y = random.choice(self._tracks) if self._tracks else random.randint(20, max(20, self.height() - 60))
         x = self.width() + random.randint(0, 160)
-        label.move(QPoint(x, y))
+        label.move(QPoint(x, track_y))
         label.show()
 
         speed = random.randint(self.speed_min, self.speed_max)
-        self.items.append(DanmakuItem(label=label, speed=speed))
+        self.items.append(DanmakuItem(label=label, speed=speed, track_y=track_y))
         self.recent_texts.append(text)
         self._schedule_next_spawn()
+
+    def _choose_available_track(self) -> int | None:
+        if not self._tracks:
+            return random.randint(20, max(20, self.height() - 60))
+
+        tracks = self._tracks[:]
+        random.shuffle(tracks)
+        for track_y in tracks:
+            if self._track_is_available(track_y):
+                return track_y
+        return None
+
+    def _track_is_available(self, track_y: int) -> bool:
+        same_track = [item for item in self.items if item.track_y == track_y]
+        if not same_track:
+            return True
+
+        rightmost_edge = max(item.label.x() + item.label.width() for item in same_track)
+        return rightmost_edge < self.width() - self.track_gap_px
 
     def _schedule_next_spawn(self) -> None:
         low = max(100, min(self.spawn_interval_min_ms, self.spawn_interval_max_ms))

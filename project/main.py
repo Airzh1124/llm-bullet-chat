@@ -224,6 +224,7 @@ def main() -> int:
         spawn_interval_max_ms=config.danmaku_spawn_interval_max,
         area_top_ratio=config.danmaku_area_top_ratio,
         area_bottom_ratio=config.danmaku_area_bottom_ratio,
+        track_gap_px=config.danmaku_track_gap_px,
         max_danmaku=config.max_danmaku,
         click_through=config.overlay_click_through,
         opacity=config.overlay_opacity,
