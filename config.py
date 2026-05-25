@@ -47,6 +47,7 @@ class AppConfig:
     deepseek_base_url: str
     deepseek_model: str
     deepseek_timeout_sec: float
+    danmaku_output_language: str
 
     capture_interval_sec: float
     ocr_interval_sec: float
@@ -124,6 +125,7 @@ def load_config() -> AppConfig:
         deepseek_base_url=str(_get(yaml_config, "DEEPSEEK_BASE_URL", "https://api.deepseek.com")),
         deepseek_model=str(_get(yaml_config, "DEEPSEEK_MODEL", "deepseek-chat")),
         deepseek_timeout_sec=float(_get(yaml_config, "DEEPSEEK_TIMEOUT_SEC", 20.0)),
+        danmaku_output_language=str(_get(yaml_config, "DANMAKU_OUTPUT_LANGUAGE", "zh")),
         capture_interval_sec=float(_get(yaml_config, "CAPTURE_INTERVAL_SEC", 1.0)),
         ocr_interval_sec=float(_get(yaml_config, "OCR_INTERVAL_SEC", 2.0)),
         llm_interval_sec=float(_get(yaml_config, "LLM_INTERVAL_SEC", 5.0)),

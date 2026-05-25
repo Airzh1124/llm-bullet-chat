@@ -76,7 +76,15 @@ DEEPSEEK_API_KEY=sk-your-deepseek-api-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_TIMEOUT_SEC=20.0
+DANMAKU_OUTPUT_LANGUAGE=zh
 ```
+
+`DANMAKU_OUTPUT_LANGUAGE` 控制生成弹幕的语言：
+
+- `zh`: 中文弹幕，默认选项。
+- `en`: 英文弹幕，适合英文内容或海外直播场景。
+
+源码里的 LLM prompt 使用英文编写，中文示例用 Unicode escape 保存，减少 Windows 终端和编辑器编码差异带来的乱码问题。
 
 也可以创建 `config.yaml`。同名字段同时存在时，`.env` 优先。
 

@@ -91,6 +91,7 @@ def worker_loop(
         base_url=config.deepseek_base_url,
         model=config.deepseek_model,
         timeout_sec=config.deepseek_timeout_sec,
+        output_language=config.danmaku_output_language,
     )
     privacy_filter = create_privacy_filter(
         engine=config.privacy_filter_engine,

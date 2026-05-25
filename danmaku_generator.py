@@ -9,27 +9,56 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 
-SYSTEM_PROMPT = "你只输出可解析的 JSON 数组。"
+SYSTEM_PROMPT = "Return only a valid JSON array. Do not include markdown or explanations."
 
-PROMPT_TEMPLATE = """你正在模拟一个 B 站直播间的实时观众弹幕。根据当前屏幕内容，生成 5 条自然的中文弹幕。
-要求：
-* 每条 6 到 18 个字
-* 像真实观众，不要太像 AI
-* 可以吐槽、惊讶、提问、玩梗
-* 不要恶意攻击
-* 不要色情内容
-* 不要政治极端内容
-* 不要编号
-* 不要重复最近已经出现过的弹幕
-* 只输出 JSON 数组
+LANGUAGE_PROFILES = {
+    "zh": {
+        "name": "Chinese",
+        "length_rule": "Each item should be 6 to 18 Chinese characters.",
+        "examples": [
+            "\u8fd9\u6ce2\u6709\u70b9\u62bd\u8c61",
+            "\u4e3b\u64ad\u5728\u5e72\u561b\u54c8\u54c8",
+            "\u6211\u597d\u50cf\u770b\u61c2\u4e86",
+            "\u8fd9\u56fe\u6709\u70b9\u5173\u952e",
+            "\u7b49\u4e0b\u8fd9\u4e0d\u5bf9\u5427",
+        ],
+    },
+    "en": {
+        "name": "English",
+        "length_rule": "Each item should be short, roughly 3 to 8 words.",
+        "examples": [
+            "wait this is wild",
+            "that timing is perfect",
+            "I see what happened",
+            "this part matters",
+            "hold on that is off",
+        ],
+    },
+}
 
-最近已经出现过的弹幕：
+PROMPT_TEMPLATE = """You are simulating live-stream audience bullet comments.
+Generate 5 natural {language_name} danmaku comments based on the current screen text.
+
+Rules:
+* {length_rule}
+* Sound like real viewers, not an assistant.
+* Reactions can be amused, surprised, curious, playful, or lightly teasing.
+* Do not attack people maliciously.
+* Do not include sexual content.
+* Do not include political extremism.
+* Do not number the items.
+* Do not repeat recent comments.
+* Return only a JSON array of strings.
+
+Recent comments:
 {recent_bullets}
 
-当前屏幕内容：
+Current screen text:
 {screen_context}
 
-期望输出：["这波有点抽象", "主播在干啥哈哈", "我好像看懂了", "这图有点关键", "等下这不对吧"]"""
+Expected style:
+{examples}
+"""
 
 
 class DanmakuGenerator(ABC):
@@ -47,6 +76,7 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
         base_url: str,
         model: str,
         timeout_sec: float = 20.0,
+        output_language: str = "zh",
     ) -> None:
         from openai import OpenAI
 
@@ -54,6 +84,7 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.timeout_sec = timeout_sec
+        self.output_language = normalize_output_language(output_language)
         self.enabled = bool(api_key)
         self._client = OpenAI(
             api_key=api_key or "missing",
@@ -70,7 +101,7 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
             response = self._client.chat.completions.create(**payload)
             content = response.choices[0].message.content or ""
             return filter_recent_bullets(
-                parse_danmaku_response(content),
+                parse_danmaku_response(content, self.output_language),
                 recent_bullets or [],
             )
         except Exception:
@@ -83,9 +114,13 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
         recent_bullets: list[str] | None = None,
     ) -> dict[str, Any]:
         recent_bullets = recent_bullets or []
+        profile = LANGUAGE_PROFILES[self.output_language]
         prompt = PROMPT_TEMPLATE.format(
+            language_name=profile["name"],
+            length_rule=profile["length_rule"],
             screen_context=screen_context[:1600],
             recent_bullets=json.dumps(recent_bullets[-20:], ensure_ascii=False),
+            examples=json.dumps(profile["examples"], ensure_ascii=False),
         )
         return {
             "model": self.model,
@@ -105,8 +140,8 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
             response = self._client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "只输出 ok。"},
-                    {"role": "user", "content": "测试连接"},
+                    {"role": "system", "content": "Return only ok."},
+                    {"role": "user", "content": "Test the connection."},
                 ],
                 temperature=0,
                 max_tokens=8,
@@ -118,6 +153,16 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
             return False, str(exc)
 
 
+def normalize_output_language(value: str) -> str:
+    normalized = (value or "zh").strip().lower()
+    if normalized in {"zh", "cn", "chinese", "zh-cn", "zh_cn"}:
+        return "zh"
+    if normalized in {"en", "english", "en-us", "en_us"}:
+        return "en"
+    logging.warning("Unknown DANMAKU_OUTPUT_LANGUAGE=%r; falling back to zh", value)
+    return "zh"
+
+
 def test_deepseek_connection_stdlib(api_key: str, base_url: str, model: str) -> tuple[bool, str]:
     if not api_key:
         return False, "DEEPSEEK_API_KEY is empty"
@@ -127,8 +172,8 @@ def test_deepseek_connection_stdlib(api_key: str, base_url: str, model: str) -> 
         {
             "model": model,
             "messages": [
-                {"role": "system", "content": "只输出 ok。"},
-                {"role": "user", "content": "测试连接"},
+                {"role": "system", "content": "Return only ok."},
+                {"role": "user", "content": "Test the connection."},
             ],
             "temperature": 0,
             "max_tokens": 8,
@@ -155,7 +200,7 @@ def test_deepseek_connection_stdlib(api_key: str, base_url: str, model: str) -> 
         return False, str(exc)
 
 
-def parse_danmaku_response(content: str) -> list[str]:
+def parse_danmaku_response(content: str, output_language: str = "zh") -> list[str]:
     parsed = _parse_jsonish(content)
     if isinstance(parsed, list):
         candidates = [str(item) for item in parsed]
@@ -166,7 +211,7 @@ def parse_danmaku_response(content: str) -> list[str]:
     seen: set[str] = set()
     for item in candidates:
         text = _clean_bullet(item)
-        if not _is_valid_bullet(text):
+        if not _is_valid_bullet(text, output_language):
             continue
         if text in seen:
             continue
@@ -207,26 +252,26 @@ def _parse_jsonish(content: str) -> Any:
 
 
 def _split_lines(content: str) -> list[str]:
-    lines = re.split(r"[\n\r]+", content)
-    if len(lines) <= 1:
-        lines = re.split(r"[，,;；]", content)
-    return lines
+    return re.split(r"[\n\r;；]+", content)
 
 
 def _clean_bullet(text: str) -> str:
-    text = text.strip().strip("\"'`[]，。")
-    text = re.sub(r"^\s*(?:[-*]|\d+[.。])\s*", "", text)
-    text = re.sub(r"\s+", "", text)
+    text = text.strip().strip("\"'`[]，。,.!?！？")
+    text = re.sub(r"^\s*(?:[-*]|\d+[.、)]?)\s*", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
-def _is_valid_bullet(text: str) -> bool:
-    if not (2 <= len(text) <= 28):
+def _is_valid_bullet(text: str, output_language: str = "zh") -> bool:
+    if not (2 <= len(text) <= 60):
         return False
     if any(bad in text.lower() for bad in ("http://", "https://", "<script", "{", "}")):
         return False
-    cjk_count = len(re.findall(r"[\u4e00-\u9fff]", text))
-    return cjk_count >= 2
+    if normalize_output_language(output_language) == "zh":
+        cjk_count = len(re.findall(r"[\u4e00-\u9fff]", text))
+        return cjk_count >= 2 and len(text) <= 28
+    word_count = len(re.findall(r"[A-Za-z0-9]+", text))
+    return 2 <= word_count <= 12
 
 
 def _similarity_key(text: str) -> str:
