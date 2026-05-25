@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import importlib.util
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -105,7 +106,8 @@ class OpenAIPrivacyFilter(PrivacyFilter):
             return None
 
         try:
-            os.environ.setdefault("OPF_MOE_TRITON", "0")
+            if importlib.util.find_spec("triton") is None:
+                os.environ.setdefault("OPF_MOE_TRITON", "0")
             kwargs: dict[str, Any] = {
                 "device": self.device,
                 "output_text_only": True,
