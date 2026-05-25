@@ -63,6 +63,7 @@ class AppConfig:
     font_size: int
     font_family: str
     danmaku_color: str
+    danmaku_mode: str
     danmaku_speed_min: int
     danmaku_speed_max: int
     danmaku_spawn_interval_min: int
@@ -70,6 +71,14 @@ class AppConfig:
     danmaku_area_top_ratio: float
     danmaku_area_bottom_ratio: float
     danmaku_track_gap_px: int
+    danmaku_panel_left_ratio: float
+    danmaku_panel_top_ratio: float
+    danmaku_panel_width_ratio: float
+    danmaku_panel_height_ratio: float
+    danmaku_panel_background_alpha: int
+    danmaku_panel_scroll_speed: int
+    danmaku_panel_line_gap: int
+    danmaku_panel_max_items: int
     max_danmaku: int
     overlay_click_through: bool
     overlay_opacity: float
@@ -122,6 +131,7 @@ def load_config() -> AppConfig:
         font_size=int(_get(yaml_config, "FONT_SIZE", 28)),
         font_family=str(_get(yaml_config, "FONT_FAMILY", "Microsoft YaHei UI")),
         danmaku_color=str(_get(yaml_config, "DANMAKU_COLOR", "#FFFFFF")),
+        danmaku_mode=str(_get(yaml_config, "DANMAKU_MODE", "floating")).lower(),
         danmaku_speed_min=int(_get(yaml_config, "DANMAKU_SPEED_MIN", 90)),
         danmaku_speed_max=int(_get(yaml_config, "DANMAKU_SPEED_MAX", 170)),
         danmaku_spawn_interval_min=int(_get(yaml_config, "DANMAKU_SPAWN_INTERVAL_MIN_MS", 650)),
@@ -129,6 +139,14 @@ def load_config() -> AppConfig:
         danmaku_area_top_ratio=float(_get(yaml_config, "DANMAKU_AREA_TOP_RATIO", 0.08)),
         danmaku_area_bottom_ratio=float(_get(yaml_config, "DANMAKU_AREA_BOTTOM_RATIO", 0.55)),
         danmaku_track_gap_px=int(_get(yaml_config, "DANMAKU_TRACK_GAP_PX", 360)),
+        danmaku_panel_left_ratio=float(_get(yaml_config, "DANMAKU_PANEL_LEFT_RATIO", 0.70)),
+        danmaku_panel_top_ratio=float(_get(yaml_config, "DANMAKU_PANEL_TOP_RATIO", 0.12)),
+        danmaku_panel_width_ratio=float(_get(yaml_config, "DANMAKU_PANEL_WIDTH_RATIO", 0.28)),
+        danmaku_panel_height_ratio=float(_get(yaml_config, "DANMAKU_PANEL_HEIGHT_RATIO", 0.55)),
+        danmaku_panel_background_alpha=int(_get(yaml_config, "DANMAKU_PANEL_BACKGROUND_ALPHA", 70)),
+        danmaku_panel_scroll_speed=int(_get(yaml_config, "DANMAKU_PANEL_SCROLL_SPEED", 36)),
+        danmaku_panel_line_gap=int(_get(yaml_config, "DANMAKU_PANEL_LINE_GAP", 8)),
+        danmaku_panel_max_items=int(_get(yaml_config, "DANMAKU_PANEL_MAX_ITEMS", 40)),
         max_danmaku=int(_get(yaml_config, "MAX_DANMAKU", 80)),
         overlay_click_through=_to_bool(_get(yaml_config, "OVERLAY_CLICK_THROUGH", True), True),
         overlay_opacity=float(_get(yaml_config, "OVERLAY_OPACITY", 0.92)),

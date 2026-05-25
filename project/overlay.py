@@ -16,6 +16,11 @@ class DanmakuItem:
     track_y: int
 
 
+@dataclass
+class PanelItem:
+    label: QLabel
+
+
 class DanmakuOverlay(QWidget):
     """Transparent top-most overlay using Qt window flags.
 
@@ -30,6 +35,7 @@ class DanmakuOverlay(QWidget):
         font_size: int = 28,
         font_family: str = "Microsoft YaHei UI",
         color: str = "#FFFFFF",
+        mode: str = "floating",
         speed_min: int = 90,
         speed_max: int = 170,
         spawn_interval_min_ms: int = 650,
@@ -37,6 +43,14 @@ class DanmakuOverlay(QWidget):
         area_top_ratio: float = 0.08,
         area_bottom_ratio: float = 0.55,
         track_gap_px: int = 360,
+        panel_left_ratio: float = 0.70,
+        panel_top_ratio: float = 0.12,
+        panel_width_ratio: float = 0.28,
+        panel_height_ratio: float = 0.55,
+        panel_background_alpha: int = 70,
+        panel_scroll_speed: int = 36,
+        panel_line_gap: int = 8,
+        panel_max_items: int = 40,
         max_danmaku: int = 80,
         click_through: bool = True,
         opacity: float = 0.92,
@@ -46,6 +60,7 @@ class DanmakuOverlay(QWidget):
         self.font_size = font_size
         self.font_family = font_family
         self.color = color
+        self.mode = mode
         self.speed_min = speed_min
         self.speed_max = speed_max
         self.spawn_interval_min_ms = spawn_interval_min_ms
@@ -53,12 +68,24 @@ class DanmakuOverlay(QWidget):
         self.area_top_ratio = area_top_ratio
         self.area_bottom_ratio = area_bottom_ratio
         self.track_gap_px = track_gap_px
+        self.panel_left_ratio = panel_left_ratio
+        self.panel_top_ratio = panel_top_ratio
+        self.panel_width_ratio = panel_width_ratio
+        self.panel_height_ratio = panel_height_ratio
+        self.panel_background_alpha = panel_background_alpha
+        self.panel_scroll_speed = panel_scroll_speed
+        self.panel_line_gap = panel_line_gap
+        self.panel_max_items = panel_max_items
         self.max_danmaku = max_danmaku
         self.keep_top_interval_ms = keep_top_interval_ms
         self.items: list[DanmakuItem] = []
+        self.panel_items: list[PanelItem] = []
         self.pending: deque[str] = deque()
         self.recent_texts: deque[str] = deque(maxlen=max_danmaku * 2)
         self._tracks: list[int] = []
+        self._panel_rect = QRect(0, 0, 0, 0)
+        self._panel_next_y = 0
+        self.panel_widget = QWidget(self)
 
         self._configure_window(click_through, opacity)
 
@@ -93,6 +120,9 @@ class DanmakuOverlay(QWidget):
         geometry = screen.geometry() if screen else QRect(0, 0, 1280, 720)
         self.setGeometry(geometry)
         self._tracks = self._build_tracks(geometry.height())
+        self._panel_rect = self._build_panel_rect(geometry)
+        self._configure_panel_widget()
+        self._panel_next_y = self.panel_widget.height()
 
     def _keep_on_top(self) -> None:
         screen = QGuiApplication.primaryScreen()
@@ -101,8 +131,30 @@ class DanmakuOverlay(QWidget):
             if self.geometry() != geometry:
                 self.setGeometry(geometry)
                 self._tracks = self._build_tracks(geometry.height())
+                self._panel_rect = self._build_panel_rect(geometry)
+                self._configure_panel_widget()
         self.showFullScreen()
         self.raise_()
+
+    def _build_panel_rect(self, geometry: QRect) -> QRect:
+        width = max(160, int(geometry.width() * self.panel_width_ratio))
+        height = max(120, int(geometry.height() * self.panel_height_ratio))
+        left = int(geometry.width() * self.panel_left_ratio)
+        top = int(geometry.height() * self.panel_top_ratio)
+        if left + width > geometry.width():
+            left = max(0, geometry.width() - width - 16)
+        if top + height > geometry.height():
+            top = max(0, geometry.height() - height - 16)
+        return QRect(left, top, width, height)
+
+    def _configure_panel_widget(self) -> None:
+        self.panel_widget.setGeometry(self._panel_rect)
+        self.panel_widget.setVisible(self.mode == "panel")
+        self.panel_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        alpha = max(0, min(self.panel_background_alpha, 255))
+        self.panel_widget.setStyleSheet(
+            f"QWidget {{ background-color: rgba(0, 0, 0, {alpha}); border-radius: 6px; }}"
+        )
 
     def _build_tracks(self, height: int) -> list[int]:
         top_margin = max(0, min(height - 1, int(height * self.area_top_ratio)))
@@ -126,6 +178,12 @@ class DanmakuOverlay(QWidget):
 
     def _spawn_next_pending(self) -> None:
         if not self.pending:
+            self._schedule_next_spawn()
+            return
+
+        if self.mode == "panel":
+            text = self.pending.popleft()
+            self._spawn_panel_item(text)
             self._schedule_next_spawn()
             return
 
@@ -157,6 +215,30 @@ class DanmakuOverlay(QWidget):
         self.recent_texts.append(text)
         self._schedule_next_spawn()
 
+    def _spawn_panel_item(self, text: str) -> None:
+        while len(self.panel_items) >= self.panel_max_items:
+            self._remove_panel_item(self.panel_items[0])
+
+        label = QLabel(text, self.panel_widget)
+        label.setFont(QFont(self.font_family, self.font_size, QFont.Weight.Bold))
+        label.setWordWrap(True)
+        label.setAutoFillBackground(False)
+        label.setPalette(self._text_palette())
+        label.setStyleSheet(
+            f"QLabel {{ color: {self.color}; background: transparent; "
+            "padding: 2px 6px; text-shadow: 2px 2px 2px rgba(0, 0, 0, 190); }"
+        )
+        label.setFixedWidth(max(80, self.panel_widget.width() - 16))
+        label.adjustSize()
+
+        x = 8
+        y = max(self._panel_next_y, self.panel_widget.height() - label.height())
+        label.move(QPoint(x, y))
+        label.show()
+        self.panel_items.append(PanelItem(label=label))
+        self.recent_texts.append(text)
+        self._panel_next_y = y + label.height() + self.panel_line_gap
+
     def _choose_available_track(self) -> int | None:
         if not self._tracks:
             return random.randint(20, max(20, self.height() - 60))
@@ -183,17 +265,45 @@ class DanmakuOverlay(QWidget):
 
     def _tick(self) -> None:
         dt = self.timer.interval() / 1000.0
+        if self.mode == "panel":
+            self._tick_panel(dt)
+            self.update(self._panel_rect)
+            return
+
         for item in list(self.items):
             label = item.label
             label.move(int(label.x() - item.speed * dt), label.y())
             if label.x() + label.width() < 0:
                 self._remove_item(item)
 
+    def _tick_panel(self, dt: float) -> None:
+        dy = max(1, int(self.panel_scroll_speed * dt))
+        for item in list(self.panel_items):
+            label = item.label
+            label.move(label.x(), label.y() - dy)
+            if label.y() + label.height() < 0:
+                self._remove_panel_item(item)
+        if self.panel_items:
+            self._panel_next_y = max(
+                self.panel_widget.height(),
+                max(item.label.y() + item.label.height() for item in self.panel_items)
+                + self.panel_line_gap,
+            )
+        else:
+            self._panel_next_y = self.panel_widget.height()
+
     def _remove_item(self, item: DanmakuItem) -> None:
         if item in self.items:
             self.items.remove(item)
         item.label.hide()
         item.label.deleteLater()
+
+    def _remove_panel_item(self, item: PanelItem) -> None:
+        if item in self.panel_items:
+            self.panel_items.remove(item)
+        item.label.hide()
+        item.label.deleteLater()
+
 
     @staticmethod
     def _text_palette() -> QPalette:
