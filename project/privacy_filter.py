@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -104,6 +105,7 @@ class OpenAIPrivacyFilter(PrivacyFilter):
             return None
 
         try:
+            os.environ.setdefault("OPF_MOE_TRITON", "0")
             kwargs: dict[str, Any] = {
                 "device": self.device,
                 "output_text_only": True,
