@@ -4,8 +4,8 @@ import random
 from collections import deque
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QPoint, QRect, QTimer, Qt, pyqtSlot
-from PyQt6.QtGui import QColor, QFont, QGuiApplication, QPalette
+from PyQt6.QtCore import QPoint, QRect, QRectF, QSize, QTimer, Qt, pyqtSlot
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPainterPath, QPalette, QPen
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 
@@ -19,6 +19,62 @@ class DanmakuItem:
 @dataclass
 class PanelItem:
     label: QLabel
+
+
+class OutlinedLabel(QLabel):
+    def __init__(
+        self,
+        text: str,
+        parent: QWidget,
+        *,
+        text_color: str,
+        outline_color: str,
+        outline_width: int,
+        background_alpha: int,
+        padding_x: int = 8,
+        padding_y: int = 4,
+    ) -> None:
+        super().__init__(text, parent)
+        self.text_color = QColor(text_color)
+        self.outline_color = QColor(outline_color)
+        self.outline_width = max(0, outline_width)
+        self.background_alpha = max(0, min(background_alpha, 255))
+        self.padding_x = padding_x
+        self.padding_y = padding_y
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+    def sizeHint(self) -> QSize:
+        metrics = QFontMetrics(self.font())
+        text_rect = metrics.boundingRect(self.text())
+        pad = self.outline_width * 2
+        return QSize(
+            text_rect.width() + self.padding_x * 2 + pad,
+            text_rect.height() + self.padding_y * 2 + pad,
+        )
+
+    def paintEvent(self, event: object) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+
+        if self.background_alpha > 0:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(0, 0, 0, self.background_alpha))
+            painter.drawRoundedRect(QRectF(self.rect()), 6, 6)
+
+        metrics = QFontMetrics(self.font())
+        baseline = self.padding_y + self.outline_width + metrics.ascent()
+        path = QPainterPath()
+        path.addText(self.padding_x + self.outline_width, baseline, self.font(), self.text())
+
+        if self.outline_width > 0:
+            pen = QPen(self.outline_color)
+            pen.setWidth(self.outline_width)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.strokePath(path, pen)
+
+        painter.fillPath(path, self.text_color)
+        painter.end()
 
 
 class DanmakuOverlay(QWidget):
@@ -35,6 +91,9 @@ class DanmakuOverlay(QWidget):
         font_size: int = 28,
         font_family: str = "Microsoft YaHei UI",
         color: str = "#FFFFFF",
+        outline_color: str = "#000000",
+        outline_width: int = 4,
+        text_background_alpha: int = 0,
         mode: str = "floating",
         speed_min: int = 90,
         speed_max: int = 170,
@@ -60,6 +119,9 @@ class DanmakuOverlay(QWidget):
         self.font_size = font_size
         self.font_family = font_family
         self.color = color
+        self.outline_color = outline_color
+        self.outline_width = outline_width
+        self.text_background_alpha = text_background_alpha
         self.mode = mode
         self.speed_min = speed_min
         self.speed_max = speed_max
@@ -196,14 +258,8 @@ class DanmakuOverlay(QWidget):
         while len(self.items) >= self.max_danmaku:
             self._remove_item(self.items[0])
 
-        label = QLabel(text, self)
+        label = self._create_text_label(text, self, background_alpha=self.text_background_alpha)
         label.setFont(QFont(self.font_family, self.font_size, QFont.Weight.Bold))
-        label.setAutoFillBackground(False)
-        label.setPalette(self._text_palette())
-        label.setStyleSheet(
-            f"QLabel {{ color: {self.color}; background: transparent; "
-            "text-shadow: 2px 2px 2px rgba(0, 0, 0, 190); }"
-        )
         label.adjustSize()
 
         x = self.width() + random.randint(0, 160)
@@ -219,15 +275,8 @@ class DanmakuOverlay(QWidget):
         while len(self.panel_items) >= self.panel_max_items:
             self._remove_panel_item(self.panel_items[0])
 
-        label = QLabel(text, self.panel_widget)
+        label = self._create_text_label(text, self.panel_widget, background_alpha=0)
         label.setFont(QFont(self.font_family, self.font_size, QFont.Weight.Bold))
-        label.setWordWrap(True)
-        label.setAutoFillBackground(False)
-        label.setPalette(self._text_palette())
-        label.setStyleSheet(
-            f"QLabel {{ color: {self.color}; background: transparent; "
-            "padding: 2px 6px; text-shadow: 2px 2px 2px rgba(0, 0, 0, 190); }"
-        )
         label.setFixedWidth(max(80, self.panel_widget.width() - 16))
         label.adjustSize()
 
@@ -297,6 +346,16 @@ class DanmakuOverlay(QWidget):
             self.items.remove(item)
         item.label.hide()
         item.label.deleteLater()
+
+    def _create_text_label(self, text: str, parent: QWidget, background_alpha: int) -> QLabel:
+        return OutlinedLabel(
+            text,
+            parent,
+            text_color=self.color,
+            outline_color=self.outline_color,
+            outline_width=self.outline_width,
+            background_alpha=background_alpha,
+        )
 
     def _remove_panel_item(self, item: PanelItem) -> None:
         if item in self.panel_items:

@@ -65,6 +65,9 @@ class AppConfig:
     font_size: int
     font_family: str
     danmaku_color: str
+    danmaku_outline_color: str
+    danmaku_outline_width: int
+    danmaku_text_background_alpha: int
     danmaku_mode: str
     danmaku_speed_min: int
     danmaku_speed_max: int
@@ -135,6 +138,9 @@ def load_config() -> AppConfig:
         font_size=int(_get(yaml_config, "FONT_SIZE", 28)),
         font_family=str(_get(yaml_config, "FONT_FAMILY", "Microsoft YaHei UI")),
         danmaku_color=str(_get(yaml_config, "DANMAKU_COLOR", "#FFFFFF")),
+        danmaku_outline_color=str(_get(yaml_config, "DANMAKU_OUTLINE_COLOR", "#000000")),
+        danmaku_outline_width=int(_get(yaml_config, "DANMAKU_OUTLINE_WIDTH", 4)),
+        danmaku_text_background_alpha=int(_get(yaml_config, "DANMAKU_TEXT_BACKGROUND_ALPHA", 0)),
         danmaku_mode=str(_get(yaml_config, "DANMAKU_MODE", "floating")).lower(),
         danmaku_speed_min=int(_get(yaml_config, "DANMAKU_SPEED_MIN", 90)),
         danmaku_speed_max=int(_get(yaml_config, "DANMAKU_SPEED_MAX", 170)),
