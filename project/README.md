@@ -1,0 +1,176 @@
+# Screen Danmaku MVP
+
+Windows 桌面 MVP：实时截屏，OCR 提取屏幕文字，把文字上下文发给 DeepSeek API 生成模拟直播弹幕，再用 PyQt6 透明置顶 overlay 从右往左显示。
+
+## 调研总结与参考
+
+本项目优先使用 pip 可安装库的公开 API，没有整段复制外部 GitHub 代码。
+
+| 参考项目 / 库 | License | 解决的问题 | 使用方式 |
+| --- | --- | --- | --- |
+| [BoboTiG/python-mss](https://github.com/BoboTiG/python-mss) | MIT | Windows 屏幕截图 | 使用 `mss().grab(monitor)` 的公开 API，并用 numpy/OpenCV 转换图像 |
+| [RapidAI/RapidOCR](https://github.com/RapidAI/RapidOCR) | Apache-2.0 | 本地 OCR | 使用 `RapidOCR()` Python API，默认 OCR 引擎 |
+| [PyQt6](https://pypi.org/project/PyQt6/) / Qt Window Flags | GPL/commercial | 透明、置顶、无边框、尽量鼠标穿透 overlay | 使用 Qt 自带 `FramelessWindowHint`、`WindowStaysOnTopHint`、`WindowTransparentForInput` 等能力 |
+| PyQt QLabel/QTimer 常见动画思路 | 视具体示例而定 | 弹幕移动动画 | 只借鉴“定时器更新 label 坐标”的思路，代码自行实现 |
+| [DeepSeek API Docs](https://api-docs.deepseek.com/) | 文档 | OpenAI-compatible LLM 调用 | 使用 `openai.OpenAI(api_key, base_url)` 调用 DeepSeek |
+| [openai-python](https://github.com/openai/openai-python) | Apache-2.0 | OpenAI-compatible client | 使用 SDK 公开 API，不复制源码 |
+
+PyQt6 采用 GPL/commercial 授权，适合个人/MVP/内部实验时通常问题不大；如果未来要闭源商用，建议评估商业授权或改成 LGPL 的 PySide6。
+
+## 设计方案
+
+数据流：
+
+```text
+mss 截屏 -> 缩略灰度图变化检测 -> RapidOCR 提取文字 -> 清洗上下文
+-> DeepSeek 生成 JSON 弹幕 -> PyQt6 overlay 显示
+```
+
+模块接口：
+
+- `screen_capture.py`：`ScreenCapture.capture()` 返回截图、是否变化、差异分数。
+- `screen_understanding.py`：`OcrEngine` 抽象接口，默认 `RapidOcrEngine`，也预留 `PaddleOcrEngine`、`EasyOcrEngine`。
+- `danmaku_generator.py`：`DanmakuGenerator` 抽象接口，默认 `DeepSeekDanmakuGenerator`。
+- `overlay.py`：`DanmakuOverlay.add_danmaku()` / `add_danmaku_batch()`。
+- `main.py`：Qt 主线程跑 overlay，后台线程按节流间隔做截屏、OCR、LLM。
+
+不会把截图上传给 DeepSeek，只发送 OCR 后的屏幕文字上下文。
+
+## 安装
+
+建议 Python 3.10+，Windows PowerShell：
+
+```powershell
+cd D:\Han\bullet_chat\project
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+第一次安装 RapidOCR / onnxruntime 可能稍慢。
+
+## 配置 DeepSeek
+
+复制环境变量示例：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+编辑 `.env`：
+
+```env
+DEEPSEEK_API_KEY=sk-your-deepseek-api-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+也可以创建 `config.yaml`，同名字段会被 `.env` 覆盖。
+
+## 运行
+
+```powershell
+python main.py
+```
+
+启动 overlay 前，可以先测试 DeepSeek 配置：
+
+```powershell
+python main.py --test-api
+```
+
+关闭方式：在运行窗口按 `Ctrl+C`，或从任务管理器结束 Python 进程。
+
+## 调整弹幕频率
+
+主要改 `.env`：
+
+```env
+CAPTURE_INTERVAL_SEC=2.0
+OCR_INTERVAL_SEC=4.0
+LLM_INTERVAL_SEC=10.0
+CHANGE_THRESHOLD=6.0
+CONTEXT_REPEAT_COOLDOWN_SEC=45.0
+MAX_DANMAKU=80
+```
+
+- `LLM_INTERVAL_SEC`：DeepSeek 调用节流，默认约 10 秒。
+- `CHANGE_THRESHOLD`：画面变化阈值，越大越不敏感，越小越容易触发。
+- `CONTEXT_REPEAT_COOLDOWN_SEC`：OCR 文字几乎没变时，多久之后才允许再次生成。
+- `MAX_DANMAKU`：屏幕上最多保留的弹幕 label 数。
+
+## 调整弹幕位置和格式
+
+这些配置可以直接改 `.env`：
+
+```env
+FONT_SIZE=26
+FONT_FAMILY=Microsoft YaHei UI
+DANMAKU_COLOR=#FFFFFF
+DANMAKU_SPEED_MIN=85
+DANMAKU_SPEED_MAX=145
+DANMAKU_SPAWN_INTERVAL_MIN_MS=800
+DANMAKU_SPAWN_INTERVAL_MAX_MS=1800
+DANMAKU_AREA_TOP_RATIO=0.08
+DANMAKU_AREA_BOTTOM_RATIO=0.45
+```
+
+- `FONT_SIZE`：字体大小。
+- `FONT_FAMILY`：字体名，例如 `Microsoft YaHei UI`。
+- `DANMAKU_COLOR`：CSS 颜色，如 `#FFFFFF`、`#FFD166`。
+- `DANMAKU_SPEED_MIN/MAX`：弹幕横向速度，越大越快。
+- `DANMAKU_SPAWN_INTERVAL_MIN/MAX_MS`：批量生成后，逐条出现的随机间隔。
+- `DANMAKU_AREA_TOP_RATIO` / `BOTTOM_RATIO`：弹幕出现的垂直区域，按屏幕高度比例计算。`0.08` 到 `0.45` 表示只在屏幕 8% 到 45% 的高度范围内出现。
+
+## 切换 OCR 引擎
+
+默认：
+
+```env
+OCR_ENGINE=rapidocr
+```
+
+可选：
+
+```env
+OCR_ENGINE=paddleocr
+OCR_ENGINE=easyocr
+```
+
+如果切换，需要额外安装对应依赖：
+
+```powershell
+pip install paddleocr
+# 或
+pip install easyocr
+```
+
+MVP 推荐先用 RapidOCR，部署最轻。
+
+## 指定截图区域
+
+默认截取 `MONITOR_INDEX=1` 的整个屏幕。可填写区域：
+
+```env
+REGION_LEFT=0
+REGION_TOP=0
+REGION_WIDTH=1280
+REGION_HEIGHT=720
+```
+
+四个字段必须同时填写才会生效。
+
+## Windows Overlay 注意事项
+
+- `OVERLAY_CLICK_THROUGH=true` 会启用 Qt 的鼠标穿透窗口 flag，通常能让鼠标点到下面的窗口。
+- 某些 Windows / Qt / 显卡组合下，穿透或全屏置顶行为可能不稳定。
+- 如果需要调试 overlay，先设置 `OVERLAY_CLICK_THROUGH=false`，否则窗口无法被鼠标选中。
+- PyQt6 overlay 使用透明无边框置顶窗口，可能被部分游戏、全屏独占程序或反作弊系统拦截。
+
+## TODO
+
+- 加入视觉模型 caption：把 `ScreenUnderstanding` 替换成截图 caption 接口，但仍避免高频上传。
+- 支持多显示器 overlay 与 capture 独立选择。
+- 加入弹幕颜色、描边、轨道避让。
+- 加入本地缓存，避免相同屏幕上下文重复调用 LLM。
+- 增加 tray icon 和快捷键开关。
