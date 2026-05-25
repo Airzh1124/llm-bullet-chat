@@ -40,6 +40,7 @@ class DanmakuOverlay(QWidget):
         max_danmaku: int = 80,
         click_through: bool = True,
         opacity: float = 0.92,
+        keep_top_interval_ms: int = 2000,
     ) -> None:
         super().__init__()
         self.font_size = font_size
@@ -53,6 +54,7 @@ class DanmakuOverlay(QWidget):
         self.area_bottom_ratio = area_bottom_ratio
         self.track_gap_px = track_gap_px
         self.max_danmaku = max_danmaku
+        self.keep_top_interval_ms = keep_top_interval_ms
         self.items: list[DanmakuItem] = []
         self.pending: deque[str] = deque()
         self.recent_texts: deque[str] = deque(maxlen=max_danmaku * 2)
@@ -68,6 +70,11 @@ class DanmakuOverlay(QWidget):
         self.spawn_timer.timeout.connect(self._spawn_next_pending)
         self._schedule_next_spawn()
 
+        self.keep_top_timer = QTimer(self)
+        self.keep_top_timer.timeout.connect(self._keep_on_top)
+        if self.keep_top_interval_ms > 0:
+            self.keep_top_timer.start(self.keep_top_interval_ms)
+
     def _configure_window(self, click_through: bool, opacity: float) -> None:
         flags = (
             Qt.WindowType.FramelessWindowHint
@@ -79,12 +86,23 @@ class DanmakuOverlay(QWidget):
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, click_through)
         self.setWindowOpacity(max(0.1, min(opacity, 1.0)))
 
         screen = QGuiApplication.primaryScreen()
         geometry = screen.geometry() if screen else QRect(0, 0, 1280, 720)
         self.setGeometry(geometry)
         self._tracks = self._build_tracks(geometry.height())
+
+    def _keep_on_top(self) -> None:
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            geometry = screen.geometry()
+            if self.geometry() != geometry:
+                self.setGeometry(geometry)
+                self._tracks = self._build_tracks(geometry.height())
+        self.showFullScreen()
+        self.raise_()
 
     def _build_tracks(self, height: int) -> list[int]:
         top_margin = max(0, min(height - 1, int(height * self.area_top_ratio)))

@@ -69,6 +69,7 @@ class AppConfig:
     max_danmaku: int
     overlay_click_through: bool
     overlay_opacity: float
+    overlay_keep_top_interval_ms: int
 
     monitor_index: int
     region_left: int | None
@@ -123,6 +124,7 @@ def load_config() -> AppConfig:
         max_danmaku=int(_get(yaml_config, "MAX_DANMAKU", 80)),
         overlay_click_through=_to_bool(_get(yaml_config, "OVERLAY_CLICK_THROUGH", True), True),
         overlay_opacity=float(_get(yaml_config, "OVERLAY_OPACITY", 0.92)),
+        overlay_keep_top_interval_ms=int(_get(yaml_config, "OVERLAY_KEEP_TOP_INTERVAL_MS", 2000)),
         monitor_index=int(_get(yaml_config, "MONITOR_INDEX", 1)),
         region_left=_optional_int(_get(yaml_config, "REGION_LEFT", None)),
         region_top=_optional_int(_get(yaml_config, "REGION_TOP", None)),

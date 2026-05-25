@@ -228,6 +228,7 @@ def main() -> int:
         max_danmaku=config.max_danmaku,
         click_through=config.overlay_click_through,
         opacity=config.overlay_opacity,
+        keep_top_interval_ms=config.overlay_keep_top_interval_ms,
     )
     overlay.showFullScreen()
 

@@ -165,9 +165,11 @@ REGION_HEIGHT=720
 ## Windows Overlay 注意事项
 
 - `OVERLAY_CLICK_THROUGH=true` 会启用 Qt 的鼠标穿透窗口 flag，通常能让鼠标点到下面的窗口。
+- `OVERLAY_KEEP_TOP_INTERVAL_MS=2000` 会周期性把 overlay 重新置顶；对无边框窗口/窗口化全屏更稳，设为 `0` 可关闭。
 - 某些 Windows / Qt / 显卡组合下，穿透或全屏置顶行为可能不稳定。
 - 如果需要调试 overlay，先设置 `OVERLAY_CLICK_THROUGH=false`，否则窗口无法被鼠标选中。
 - PyQt6 overlay 使用透明无边框置顶窗口，可能被部分游戏、全屏独占程序或反作弊系统拦截。
+- 如果游戏使用“独占全屏”，普通桌面 overlay 通常无法显示在游戏上方。请优先把游戏显示模式切到“无边框窗口”“窗口化全屏”或“Borderless Windowed”。
 
 ## TODO
 
