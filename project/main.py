@@ -65,11 +65,13 @@ def worker_loop(
         api_key=config.deepseek_api_key,
         base_url=config.deepseek_base_url,
         model=config.deepseek_model,
+        timeout_sec=config.deepseek_timeout_sec,
     )
     privacy_filter = create_privacy_filter(
         engine=config.privacy_filter_engine,
         device=config.privacy_filter_device,
         checkpoint=config.privacy_filter_checkpoint,
+        max_chars=config.privacy_filter_max_chars,
     )
 
     last_ocr_at = 0.0
@@ -94,7 +96,9 @@ def worker_loop(
 
             if result.changed and now - last_ocr_at >= config.ocr_interval_sec:
                 raw_context = understanding.understand(result.image_bgr)
+                privacy_start = time.monotonic()
                 privacy_result = privacy_filter.sanitize(raw_context)
+                privacy_elapsed = time.monotonic() - privacy_start
                 last_context = privacy_result.sanitized_text
                 last_ocr_at = now
                 audit.record(
@@ -109,7 +113,12 @@ def worker_loop(
                     "privacy_filter",
                     collected_text=last_context,
                     result=privacy_result.summary(),
-                    detail=f"engine={config.privacy_filter_engine}; raw_text_logged={str(config.audit_log_raw_text).lower()}",
+                    detail=(
+                        f"engine={config.privacy_filter_engine}; "
+                        f"device={config.privacy_filter_device}; "
+                        f"elapsed={privacy_elapsed:.2f}s; "
+                        f"raw_text_logged={str(config.audit_log_raw_text).lower()}"
+                    ),
                     changed=result.changed,
                     diff_score=result.diff_score,
                 )
@@ -156,12 +165,14 @@ def worker_loop(
                     changed=result.changed,
                     diff_score=result.diff_score,
                 )
+                llm_start = time.monotonic()
                 bullets = generator.generate(last_context, recent_bullet_list)
+                llm_elapsed = time.monotonic() - llm_start
                 audit.record(
                     "llm_response",
                     collected_text=last_context,
                     result=bullets,
-                    detail=f"{len(bullets)} bullets parsed",
+                    detail=f"{len(bullets)} bullets parsed; elapsed={llm_elapsed:.2f}s",
                     changed=result.changed,
                     diff_score=result.diff_score,
                 )
@@ -224,6 +235,7 @@ def main() -> int:
             engine=config.privacy_filter_engine,
             device=config.privacy_filter_device,
             checkpoint=config.privacy_filter_checkpoint,
+            max_chars=config.privacy_filter_max_chars,
         )
         sample = (
             "contact me at alice@example.com, phone 13800138000, "

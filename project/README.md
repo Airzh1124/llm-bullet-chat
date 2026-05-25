@@ -65,6 +65,7 @@ Copy-Item .env.example .env
 DEEPSEEK_API_KEY=sk-your-deepseek-api-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_TIMEOUT_SEC=20.0
 ```
 
 也可以创建 `config.yaml`，同名字段会被 `.env` 覆盖。
@@ -103,6 +104,7 @@ MAX_DANMAKU=80
 ```
 
 - `LLM_INTERVAL_SEC`：DeepSeek 调用节流，默认约 10 秒。
+- `DEEPSEEK_TIMEOUT_SEC`：DeepSeek 请求超时，避免 API 等太久导致弹幕管道停住。
 - `CHANGE_THRESHOLD`：画面变化阈值，越大越不敏感，越小越容易触发。
 - `CONTEXT_REPEAT_COOLDOWN_SEC`：OCR 文字几乎没变时，多久之后才允许再次生成。
 - `MAX_DANMAKU`：屏幕上最多保留的弹幕 label 数。
@@ -115,12 +117,14 @@ MAX_DANMAKU=80
 PRIVACY_FILTER_ENGINE=regex
 PRIVACY_FILTER_DEVICE=cpu
 PRIVACY_FILTER_CHECKPOINT=
+PRIVACY_FILTER_MAX_CHARS=1200
 AUDIT_LOG_RAW_TEXT=false
 ```
 
 - `regex`：本地正则脱敏，不需要额外下载模型，默认开启。会处理常见邮箱、手机号、身份证号、长账号/银行卡号、API key、Bearer token、URL 等。
 - `openai`：使用 OpenAI 开源的 [privacy-filter](https://github.com/openai/privacy-filter) 本地模型。需要额外安装，首次运行可能下载模型权重。
 - `none`：关闭隐私过滤，不建议。
+- `PRIVACY_FILTER_MAX_CHARS`：OPF 每次处理的最大 OCR 文本长度，超出的部分使用 regex 兜底，避免长文本拖慢实时循环。
 - `AUDIT_LOG_RAW_TEXT=false`：审计日志默认不写入原始 OCR 文本，只记录脱敏后的文本和命中摘要。
 
 安装 OpenAI Privacy Filter 增强引擎：

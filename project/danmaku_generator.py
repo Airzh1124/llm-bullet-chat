@@ -41,14 +41,25 @@ class DanmakuGenerator(ABC):
 class DeepSeekDanmakuGenerator(DanmakuGenerator):
     """DeepSeek adapter via the OpenAI-compatible Python client."""
 
-    def __init__(self, api_key: str, base_url: str, model: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout_sec: float = 20.0,
+    ) -> None:
         from openai import OpenAI
 
         self.model = model
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
+        self.timeout_sec = timeout_sec
         self.enabled = bool(api_key)
-        self._client = OpenAI(api_key=api_key or "missing", base_url=base_url)
+        self._client = OpenAI(
+            api_key=api_key or "missing",
+            base_url=base_url,
+            timeout=timeout_sec,
+        )
 
     def generate(self, screen_context: str, recent_bullets: list[str] | None = None) -> list[str]:
         if not self.enabled or not screen_context.strip():
@@ -84,6 +95,7 @@ class DeepSeekDanmakuGenerator(DanmakuGenerator):
             ],
             "temperature": 0.9,
             "max_tokens": 240,
+            "timeout": self.timeout_sec,
         }
 
     def test_connection(self) -> tuple[bool, str]:

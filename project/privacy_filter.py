@@ -79,16 +79,27 @@ class OpenAIPrivacyFilter(PrivacyFilter):
         self,
         device: str = "cpu",
         checkpoint: str | None = None,
+        max_chars: int = 1200,
         fallback: PrivacyFilter | None = None,
     ) -> None:
         self.device = device
         self.checkpoint = checkpoint or None
+        self.max_chars = max(200, max_chars)
         self.fallback = fallback or RegexPrivacyFilter()
         self._opf = self._load_opf()
 
     def sanitize(self, text: str) -> PrivacyFilterResult:
         if self._opf is None:
             return self.fallback.sanitize(text)
+        if len(text) > self.max_chars:
+            head = text[: self.max_chars]
+            tail = text[self.max_chars :]
+            head_result = self.sanitize(head)
+            tail_result = self.fallback.sanitize(tail)
+            return PrivacyFilterResult(
+                sanitized_text=head_result.sanitized_text + tail_result.sanitized_text,
+                findings=_merge_findings(head_result.findings, tail_result.findings),
+            )
         try:
             raw = self._opf.redact(text)
             redacted_text = _extract_redacted_text(raw)
@@ -124,11 +135,12 @@ def create_privacy_filter(
     engine: str,
     device: str = "cpu",
     checkpoint: str | None = None,
+    max_chars: int = 1200,
 ) -> PrivacyFilter:
     if engine == "none":
         return NullPrivacyFilter()
     if engine == "openai":
-        return OpenAIPrivacyFilter(device=device, checkpoint=checkpoint)
+        return OpenAIPrivacyFilter(device=device, checkpoint=checkpoint, max_chars=max_chars)
     if engine == "regex":
         return RegexPrivacyFilter()
     raise ValueError(f"Unsupported privacy filter engine: {engine}")
@@ -183,3 +195,11 @@ def _span_label(span: Any) -> str:
         if value:
             return str(value)
     return "pii"
+
+
+def _merge_findings(*groups: list[PrivacyFinding]) -> list[PrivacyFinding]:
+    counts: dict[str, int] = {}
+    for group in groups:
+        for finding in group:
+            counts[finding.label] = counts.get(finding.label, 0) + finding.count
+    return [PrivacyFinding(label=label, count=count) for label, count in sorted(counts.items())]

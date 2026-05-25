@@ -46,6 +46,7 @@ class AppConfig:
     deepseek_api_key: str
     deepseek_base_url: str
     deepseek_model: str
+    deepseek_timeout_sec: float
 
     capture_interval_sec: float
     ocr_interval_sec: float
@@ -58,6 +59,7 @@ class AppConfig:
     privacy_filter_engine: str
     privacy_filter_device: str
     privacy_filter_checkpoint: str | None
+    privacy_filter_max_chars: int
     audit_log_raw_text: bool
 
     font_size: int
@@ -117,6 +119,7 @@ def load_config() -> AppConfig:
         deepseek_api_key=str(_get(yaml_config, "DEEPSEEK_API_KEY", "")),
         deepseek_base_url=str(_get(yaml_config, "DEEPSEEK_BASE_URL", "https://api.deepseek.com")),
         deepseek_model=str(_get(yaml_config, "DEEPSEEK_MODEL", "deepseek-chat")),
+        deepseek_timeout_sec=float(_get(yaml_config, "DEEPSEEK_TIMEOUT_SEC", 20.0)),
         capture_interval_sec=float(_get(yaml_config, "CAPTURE_INTERVAL_SEC", 1.0)),
         ocr_interval_sec=float(_get(yaml_config, "OCR_INTERVAL_SEC", 2.0)),
         llm_interval_sec=float(_get(yaml_config, "LLM_INTERVAL_SEC", 5.0)),
@@ -127,6 +130,7 @@ def load_config() -> AppConfig:
         privacy_filter_engine=str(_get(yaml_config, "PRIVACY_FILTER_ENGINE", "regex")).lower(),
         privacy_filter_device=str(_get(yaml_config, "PRIVACY_FILTER_DEVICE", "cpu")).lower(),
         privacy_filter_checkpoint=_optional_str(_get(yaml_config, "PRIVACY_FILTER_CHECKPOINT", None)),
+        privacy_filter_max_chars=int(_get(yaml_config, "PRIVACY_FILTER_MAX_CHARS", 1200)),
         audit_log_raw_text=_to_bool(_get(yaml_config, "AUDIT_LOG_RAW_TEXT", False), False),
         font_size=int(_get(yaml_config, "FONT_SIZE", 28)),
         font_family=str(_get(yaml_config, "FONT_FAMILY", "Microsoft YaHei UI")),
