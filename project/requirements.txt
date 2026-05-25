@@ -11,3 +11,7 @@ onnxruntime>=1.17
 # Optional OCR engines. Install manually if you switch OCR_ENGINE.
 # paddleocr>=2.7
 # easyocr>=1.7
+
+# Optional stronger local PII detector. Install manually if you set
+# PRIVACY_FILTER_ENGINE=openai. It may download model weights on first use.
+# opf @ git+https://github.com/openai/privacy-filter.git

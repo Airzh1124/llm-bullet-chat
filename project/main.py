@@ -21,6 +21,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Test DeepSeek API configuration and exit without starting the overlay.",
     )
+    parser.add_argument(
+        "--test-privacy",
+        action="store_true",
+        help="Test local privacy redaction and exit without starting the overlay.",
+    )
     return parser.parse_args()
 
 
@@ -43,6 +48,7 @@ def worker_loop(
     audit: AuditLog,
 ) -> None:
     from danmaku_generator import DeepSeekDanmakuGenerator
+    from privacy_filter import create_privacy_filter
     from screen_capture import ScreenCapture
     from screen_understanding import ScreenUnderstanding
 
@@ -59,6 +65,11 @@ def worker_loop(
         api_key=config.deepseek_api_key,
         base_url=config.deepseek_base_url,
         model=config.deepseek_model,
+    )
+    privacy_filter = create_privacy_filter(
+        engine=config.privacy_filter_engine,
+        device=config.privacy_filter_device,
+        checkpoint=config.privacy_filter_checkpoint,
     )
 
     last_ocr_at = 0.0
@@ -82,13 +93,23 @@ def worker_loop(
             )
 
             if result.changed and now - last_ocr_at >= config.ocr_interval_sec:
-                last_context = understanding.understand(result.image_bgr)
+                raw_context = understanding.understand(result.image_bgr)
+                privacy_result = privacy_filter.sanitize(raw_context)
+                last_context = privacy_result.sanitized_text
                 last_ocr_at = now
                 audit.record(
                     "ocr",
-                    collected_text=last_context,
-                    result=f"{len(last_context)} chars after OCR cleanup",
+                    collected_text=raw_context if config.audit_log_raw_text else last_context,
+                    result=f"{len(raw_context)} chars after OCR cleanup",
                     detail=f"engine={config.ocr_engine}",
+                    changed=result.changed,
+                    diff_score=result.diff_score,
+                )
+                audit.record(
+                    "privacy_filter",
+                    collected_text=last_context,
+                    result=privacy_result.summary(),
+                    detail=f"engine={config.privacy_filter_engine}; raw_text_logged={str(config.audit_log_raw_text).lower()}",
                     changed=result.changed,
                     diff_score=result.diff_score,
                 )
@@ -193,6 +214,34 @@ def main() -> int:
             return 0
         print(f"DeepSeek API test failed. model={config.deepseek_model}, error={message}")
         return 1
+
+    if args.test_privacy:
+        import json
+
+        from privacy_filter import create_privacy_filter
+
+        privacy_filter = create_privacy_filter(
+            engine=config.privacy_filter_engine,
+            device=config.privacy_filter_device,
+            checkpoint=config.privacy_filter_checkpoint,
+        )
+        sample = (
+            "contact me at alice@example.com, phone 13800138000, "
+            "api_key=sk-abcdefghijklmnop1234567890"
+        )
+        result = privacy_filter.sanitize(sample)
+        print(
+            json.dumps(
+                {
+                    "engine": config.privacy_filter_engine,
+                    "input": sample,
+                    "sanitized": result.sanitized_text,
+                    "findings": [finding.__dict__ for finding in result.findings],
+                },
+                ensure_ascii=True,
+            )
+        )
+        return 0
 
     audit: AuditLog = (
         AuditLog(

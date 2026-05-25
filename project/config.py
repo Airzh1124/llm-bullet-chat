@@ -55,6 +55,10 @@ class AppConfig:
 
     ocr_engine: str
     max_context_chars: int
+    privacy_filter_engine: str
+    privacy_filter_device: str
+    privacy_filter_checkpoint: str | None
+    audit_log_raw_text: bool
 
     font_size: int
     font_family: str
@@ -111,6 +115,10 @@ def load_config() -> AppConfig:
         context_repeat_cooldown_sec=float(_get(yaml_config, "CONTEXT_REPEAT_COOLDOWN_SEC", 30.0)),
         ocr_engine=str(_get(yaml_config, "OCR_ENGINE", "rapidocr")).lower(),
         max_context_chars=int(_get(yaml_config, "MAX_CONTEXT_CHARS", 1200)),
+        privacy_filter_engine=str(_get(yaml_config, "PRIVACY_FILTER_ENGINE", "regex")).lower(),
+        privacy_filter_device=str(_get(yaml_config, "PRIVACY_FILTER_DEVICE", "cpu")).lower(),
+        privacy_filter_checkpoint=_optional_str(_get(yaml_config, "PRIVACY_FILTER_CHECKPOINT", None)),
+        audit_log_raw_text=_to_bool(_get(yaml_config, "AUDIT_LOG_RAW_TEXT", False), False),
         font_size=int(_get(yaml_config, "FONT_SIZE", 28)),
         font_family=str(_get(yaml_config, "FONT_FAMILY", "Microsoft YaHei UI")),
         danmaku_color=str(_get(yaml_config, "DANMAKU_COLOR", "#FFFFFF")),
@@ -140,6 +148,12 @@ def _optional_int(value: Any) -> int | None:
     if value in (None, ""):
         return None
     return int(value)
+
+
+def _optional_str(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    return str(value)
 
 
 def _load_simple_env(path: Path) -> None:
