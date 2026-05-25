@@ -84,6 +84,7 @@ class AppConfig:
     danmaku_panel_scroll_speed: int
     danmaku_panel_line_gap: int
     danmaku_panel_max_items: int
+    danmaku_exclude_from_ocr: bool
     max_danmaku: int
     overlay_click_through: bool
     overlay_opacity: float
@@ -157,6 +158,7 @@ def load_config() -> AppConfig:
         danmaku_panel_scroll_speed=int(_get(yaml_config, "DANMAKU_PANEL_SCROLL_SPEED", 36)),
         danmaku_panel_line_gap=int(_get(yaml_config, "DANMAKU_PANEL_LINE_GAP", 8)),
         danmaku_panel_max_items=int(_get(yaml_config, "DANMAKU_PANEL_MAX_ITEMS", 40)),
+        danmaku_exclude_from_ocr=_to_bool(_get(yaml_config, "DANMAKU_EXCLUDE_FROM_OCR", True), True),
         max_danmaku=int(_get(yaml_config, "MAX_DANMAKU", 80)),
         overlay_click_through=_to_bool(_get(yaml_config, "OVERLAY_CLICK_THROUGH", True), True),
         overlay_opacity=float(_get(yaml_config, "OVERLAY_OPACITY", 0.92)),

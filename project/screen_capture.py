@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
 
 import cv2
 import mss
@@ -26,10 +27,12 @@ class ScreenCapture:
         monitor_index: int = 1,
         region: dict[str, int] | None = None,
         change_threshold: float = 4.0,
+        mask_regions: Sequence[tuple[float, float, float, float]] | None = None,
     ) -> None:
         self.monitor_index = monitor_index
         self.region = region
         self.change_threshold = change_threshold
+        self.mask_regions = list(mask_regions or [])
         self._last_small_gray: np.ndarray | None = None
 
     def capture(self) -> CaptureResult:
@@ -39,11 +42,12 @@ class ScreenCapture:
 
         frame = np.asarray(raw)
         image_bgr = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        small_gray = self._small_gray(image_bgr)
+        masked_bgr = self._mask_image(image_bgr)
+        small_gray = self._small_gray(masked_bgr)
 
         if self._last_small_gray is None:
             self._last_small_gray = small_gray
-            return CaptureResult(image_bgr=image_bgr, changed=True, diff_score=999.0)
+            return CaptureResult(image_bgr=masked_bgr, changed=True, diff_score=999.0)
 
         diff_score = float(
             np.mean(cv2.absdiff(self._last_small_gray, small_gray))
@@ -52,7 +56,7 @@ class ScreenCapture:
         if changed:
             self._last_small_gray = small_gray
 
-        return CaptureResult(image_bgr=image_bgr, changed=changed, diff_score=diff_score)
+        return CaptureResult(image_bgr=masked_bgr, changed=changed, diff_score=diff_score)
 
     def _get_monitor(self, sct: mss.mss) -> dict[str, int]:
         if self.region:
@@ -67,3 +71,22 @@ class ScreenCapture:
     def _small_gray(image_bgr: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
         return cv2.resize(gray, (96, 54), interpolation=cv2.INTER_AREA)
+
+    def _mask_image(self, image_bgr: np.ndarray) -> np.ndarray:
+        if not self.mask_regions:
+            return image_bgr
+
+        masked = image_bgr.copy()
+        height, width = masked.shape[:2]
+        for left, top, region_width, region_height in self.mask_regions:
+            x1 = _clamp_int(left * width, 0, width)
+            y1 = _clamp_int(top * height, 0, height)
+            x2 = _clamp_int((left + region_width) * width, 0, width)
+            y2 = _clamp_int((top + region_height) * height, 0, height)
+            if x2 > x1 and y2 > y1:
+                masked[y1:y2, x1:x2] = 0
+        return masked
+
+
+def _clamp_int(value: float, low: int, high: int) -> int:
+    return max(low, min(high, int(value)))

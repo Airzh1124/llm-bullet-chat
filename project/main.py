@@ -41,6 +41,30 @@ def build_region(config: AppConfig) -> dict[str, int] | None:
     }
 
 
+def build_ocr_mask_regions(config: AppConfig) -> list[tuple[float, float, float, float]]:
+    if not config.danmaku_exclude_from_ocr:
+        return []
+
+    if config.danmaku_mode == "panel":
+        return [
+            (
+                config.danmaku_panel_left_ratio,
+                config.danmaku_panel_top_ratio,
+                config.danmaku_panel_width_ratio,
+                config.danmaku_panel_height_ratio,
+            )
+        ]
+
+    return [
+        (
+            0.0,
+            config.danmaku_area_top_ratio,
+            1.0,
+            max(0.0, config.danmaku_area_bottom_ratio - config.danmaku_area_top_ratio),
+        )
+    ]
+
+
 def worker_loop(
     config: AppConfig,
     bridge: OverlayBridge,
@@ -56,6 +80,7 @@ def worker_loop(
         monitor_index=config.monitor_index,
         region=build_region(config),
         change_threshold=config.change_threshold,
+        mask_regions=build_ocr_mask_regions(config),
     )
     understanding = ScreenUnderstanding(
         engine_name=config.ocr_engine,
@@ -89,7 +114,10 @@ def worker_loop(
             audit.record(
                 "capture",
                 result="screen image captured locally; image bytes are not uploaded",
-                detail="change detection completed",
+                detail=(
+                    "change detection completed; "
+                    f"danmaku_masked={str(config.danmaku_exclude_from_ocr).lower()}"
+                ),
                 changed=result.changed,
                 diff_score=result.diff_score,
             )
