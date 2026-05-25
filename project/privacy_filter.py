@@ -98,18 +98,19 @@ class OpenAIPrivacyFilter(PrivacyFilter):
 
     def _load_opf(self) -> Any:
         try:
-            from opf import OPF
+            from opf._api import OPF
         except Exception:
             logging.warning("OpenAI Privacy Filter package is not installed; using regex privacy filter")
             return None
 
-        kwargs: dict[str, Any] = {"device": self.device}
-        if self.checkpoint:
-            kwargs["checkpoint"] = self.checkpoint
         try:
+            kwargs: dict[str, Any] = {
+                "device": self.device,
+                "output_text_only": True,
+            }
+            if self.checkpoint:
+                kwargs["model"] = self.checkpoint
             return OPF(**kwargs)
-        except TypeError:
-            return OPF()
         except Exception:
             logging.exception("Failed to initialize OpenAI Privacy Filter; using regex privacy filter")
             return None
